@@ -75,7 +75,7 @@ async def main():
     stop = perf_counter()
     print("Time:", stop - start, "seconds")
     print()
-    print("Without buffer:")
+    print("With buffer:")
     start = perf_counter()
     async for i in buffered(countdown(5)):
         print("        Starting processing for", i)
@@ -113,7 +113,7 @@ Without buffer:
         Finished processing for 1
 Time: 10.079117399873212 seconds
 
-Without buffer:
+With buffer:
     Starting countdown for 5
     Finished countdown for 5
         Starting processing for 5

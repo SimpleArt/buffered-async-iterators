@@ -73,7 +73,7 @@ processed twice as fast.
     ...     stop = perf_counter()
     ...     print("Time:", stop - start, "seconds")
     ...     print()
-    ...     print("Without buffer:")
+    ...     print("With buffer:")
     ...     start = perf_counter()
     ...     async for i in buffered(countdown(5)):
     ...         print("        Starting processing for", i)
@@ -107,7 +107,7 @@ processed twice as fast.
             Finished processing for 1
     Time: 10.079117399873212 seconds
     
-    Without buffer:
+    With buffer:
         Starting countdown for 5
         Finished countdown for 5
             Starting processing for 5
@@ -135,6 +135,6 @@ the generator cannot run at the same time as its consumer is processing
 previous items. With the buffer, the generator can run while items are
 being processed, which can provide a noticeable speedup.
 """
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 from ._buffered import buffered
