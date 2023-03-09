@@ -1,13 +1,11 @@
 import asyncio
-import enum
 import sys
-import typing
 from typing import Any, TypeVar
 
 if sys.version_info < (3, 9):
-    from typing import AsyncIterable, AsyncIterator
+    from typing import AsyncIterable, AsyncIterator, Awaitable
 else:
-    from collections.abc import AsyncIterable, AsyncIterator
+    from collections.abc import AsyncIterable, AsyncIterator, Awaitable
 
 T = TypeVar("T")
 T1 = TypeVar("T1")
@@ -16,45 +14,23 @@ T2 = TypeVar("T2")
 # Implementations of `aiter` and `anext` for `python < 3.10`.
 if sys.version_info < (3, 10):
 
-    class Missing(enum.Enum):
-        """An enum for a missing default parameter."""
-
-        DEFAULT = enum.auto()
-
-        def __repr__(self, /) -> str:
-            return "Missing.DEFAULT"
-
-
     def aiter(iterable: AsyncIterable[T], /) -> AsyncIterator[T]:
         return type(iterable).__aiter__(iterable)
 
-    @typing.overload
-    async def anext(iterator: AsyncIterator[T], /) -> T: ...
-
-    @typing.overload
-    async def anext(
-        iterator: AsyncIterator[T1], default: T2, /
-    ) -> typing.Union[T1, T2]: ...
-
-    async def anext(
-        iterator: AsyncIterator[T1],
-        default: typing.Union[Missing, T2] = Missing.DEFAULT,
-        /,
-    ) -> typing.Union[T1, T2]:
-        if default is Missing.DEFAULT:
-            return await type(iterator).__anext__(iterator)
-        try:
-            return await type(iterator).__anext__(iterator)
-        except StopAsyncIteration:
-            return default
+    def anext(iterator: AsyncIterator[T], /) -> Awaitable[T]:
+        return type(iterator).__anext__(iterator)
 
 async def _task(
-    iterator: AsyncIterator[Any], queue: Any, stop: object, /
+    iterable: AsyncIterable[Any], queue: Any, /
 ) -> None:
-    """Helper task for exhausting the iterator."""
-    async for x in iterator:
-        await queue.put(x)
-    await queue.put(stop)
+    """Helper task for exhausting the iterable."""
+    try:
+        async for x in iterable:
+            await queue.put((False, x))
+    except BaseException as e:
+        await queue.put((True, e))
+    else:
+        await queue.put((None, None))
 
 async def buffered(
     iterable: AsyncIterable[T],
@@ -82,8 +58,8 @@ async def buffered(
         raise TypeError("expected async iterable, got " + type(iterable).__name__)
     elif not isinstance(n, int):
         raise TypeError("expected int, got " + type(n).__name__)
-    iterator = aiter(iterable)
     if n == 1:
+        iterator = aiter(iterable)
         async for x in iterator:
             try:
                 while True:
@@ -92,12 +68,28 @@ async def buffered(
                     x = await task
             except StopAsyncIteration:
                 pass
+            except asyncio.CancelledError:
+                task.cancel()
+                try:
+                    await task
+                except:
+                    pass
+                raise
     else:
         queue = asyncio.Queue(n - 1)
-        stop = object()
-        asyncio.create_task(_task(iterator, queue, stop))
-        while True:
-            x = await queue.get()
-            if x is stop:
-                break
-            yield x
+        task = asyncio.create_task(_task(iterable, queue))
+        try:
+            while True:
+                is_error, x = await queue.get()
+                if is_error:
+                    raise x
+                elif is_error is None:
+                    break
+                yield x
+        except asyncio.CancelledError:
+            task.cancel()
+            try:
+                await task
+            except:
+                pass
+            raise

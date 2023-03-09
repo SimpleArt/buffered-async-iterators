@@ -135,6 +135,6 @@ the generator cannot run at the same time as its consumer is processing
 previous items. With the buffer, the generator can run while items are
 being processed, which can provide a noticeable speedup.
 """
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 from ._buffered import buffered
